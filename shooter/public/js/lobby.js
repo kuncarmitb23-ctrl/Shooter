@@ -1,4 +1,4 @@
-// LOBBY — všechno pro menu a lobby obrazovku
+// LOBBY — handles menu and lobby screen
 import { CHARACTERS } from './characters.js';
 
 export function initLobby({ session, showScreen, onStartGame }) {
@@ -31,18 +31,18 @@ export function initLobby({ session, showScreen, onStartGame }) {
   function setMenuErr(t) { menuErr.textContent = t || ''; }
 
   function validateName() {
-    if (!session.name) { setMenuErr('Zadej jméno'); return false; }
+    if (!session.name) { setMenuErr('Enter your name'); return false; }
     setMenuErr('');
     return true;
   }
 
   createBtn.addEventListener('click', () => {
     if (!validateName()) return;
-    if (!socket.connected) { setMenuErr('Server není připojen'); return; }
+    if (!socket.connected) { setMenuErr('Server not connected'); return; }
     createBtn.disabled = true;
     socket.emit('lobby:create', { name: session.name, character: session.character }, (res) => {
       createBtn.disabled = false;
-      if (!res || !res.ok) { setMenuErr(res?.error || 'Chyba'); return; }
+      if (!res || !res.ok) { setMenuErr(res?.error || 'Error'); return; }
       enterLobby();
     });
   });
@@ -50,12 +50,12 @@ export function initLobby({ session, showScreen, onStartGame }) {
   joinBtn.addEventListener('click', () => {
     if (!validateName()) return;
     const code = codeInput.value.trim().toUpperCase();
-    if (!code) { setMenuErr('Zadej kód'); return; }
-    if (!socket.connected) { setMenuErr('Server není připojen'); return; }
+    if (!code) { setMenuErr('Enter code'); return; }
+    if (!socket.connected) { setMenuErr('Server not connected'); return; }
     joinBtn.disabled = true;
     socket.emit('lobby:join', { code, name: session.name, character: session.character }, (res) => {
       joinBtn.disabled = false;
-      if (!res || !res.ok) { setMenuErr(res?.error || 'Chyba'); return; }
+      if (!res || !res.ok) { setMenuErr(res?.error || 'Error'); return; }
       enterLobby();
     });
   });
@@ -145,7 +145,7 @@ export function initLobby({ session, showScreen, onStartGame }) {
       startBtn.style.display = '';
       const allReady = room.players.every(p => p.ready);
       startBtn.disabled = !allReady;
-      startBtn.textContent = allReady ? 'Start hry' : 'Čekám na ready...';
+      startBtn.textContent = allReady ? 'Start game' : 'Waiting for ready...';
     } else {
       readyBtn.style.display = '';
       startBtn.style.display = 'none';

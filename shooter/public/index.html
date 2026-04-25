@@ -1,27 +1,31 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>2D Shooter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       background: linear-gradient(135deg, #1a1a2e, #16213e);
       color: #eee;
-      font-family: 'Segoe UI', Tahoma, sans-serif;
+      font-family: 'Silkscreen', monospace;
       min-height: 100vh;
       overflow-x: hidden;
+      letter-spacing: 0.5px;
     }
 
-    /* Skryté sekce - nezobrazujeme všechny najednou */
+    /* Hidden sections — show one at a time */
     .screen { display: none; }
     .screen.active { display: block; }
 
-    /* ─── Status připojení ─── */
+    /* ─── Connection status ─── */
     .conn-status {
       position: fixed; top: 8px; right: 8px;
-      font-family: monospace; font-size: 12px;
+      font-family: 'Silkscreen', monospace; font-size: 12px;
       padding: 4px 10px; border-radius: 4px;
       background: rgba(0,0,0,0.5); z-index: 1000;
     }
@@ -183,12 +187,12 @@
     canvas { background: #2a2a2a; display: block; }
     #hud {
       position: fixed; top: 8px; left: 8px;
-      font-family: monospace; font-size: 13px;
+      font-family: 'Silkscreen', monospace; font-size: 13px;
       background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 4px;
     }
     #help {
       position: fixed; bottom: 8px; left: 8px;
-      opacity: 0.7; font-size: 12px; font-family: monospace;
+      opacity: 0.7; font-size: 12px; font-family: 'Silkscreen', monospace;
     }
 
     /* ─── In-game chat ─── */
@@ -196,11 +200,11 @@
       position: fixed; bottom: 40px; left: 12px;
       width: 360px; max-width: 40vw;
       pointer-events: none;
-      font-family: monospace; font-size: 13px;
+      font-family: 'Silkscreen', monospace; font-size: 13px;
       display: flex; flex-direction: column;
       gap: 6px;
     }
-    /* Log zpráv — vždy viditelný, zprávy mizí samy */
+    /* Message log — always visible, messages fade away */
     #gameChatLog {
       max-height: 180px; overflow-y: auto;
       display: flex; flex-direction: column;
@@ -212,7 +216,7 @@
       word-wrap: break-word;
       animation: fadeOut 6s forwards;
     }
-    /* Když je chat aktivně otevřený, zprávy nemizí a celý log má pozadí */
+    /* When chat is open, messages stay and log gets background */
     #gameChat.active #gameChatLog {
       background: rgba(0,0,0,0.5);
       padding: 8px; border-radius: 4px;
@@ -226,13 +230,13 @@
     }
     #gameChatLog .from { color: #4ecdc4; font-weight: 600; }
 
-    /* Input — skrytý dokud nestiskneš Z */
+    /* Input — hidden until Z is pressed */
     #gameChatInput {
       display: none;
       width: 100%; padding: 8px 10px;
       background: rgba(0,0,0,0.7); border: 1px solid #4ecdc4;
       color: #fff; border-radius: 4px;
-      font-family: monospace; font-size: 13px;
+      font-family: 'Silkscreen', monospace; font-size: 13px;
       pointer-events: auto;
       outline: none;
     }
@@ -272,7 +276,7 @@
     .keybinds-list .key {
       background: #374151; color: #4ecdc4;
       padding: 4px 10px; border-radius: 4px;
-      font-family: monospace; font-weight: 700;
+      font-family: 'Silkscreen', monospace; font-weight: 700;
       cursor: pointer; min-width: 60px; text-align: center;
       border: 1px solid #4b5563;
     }
@@ -289,24 +293,24 @@
 </head>
 <body>
 
-  <div class="conn-status connecting" id="connStatus">připojuji...</div>
+  <div class="conn-status connecting" id="connStatus">connecting...</div>
 
   <!-- ═══ MENU ═══ -->
   <div id="screen-menu" class="screen active">
     <div class="panel">
       <h1>🎮 2D Shooter</h1>
-      <p class="sub">Vytvoř místnost nebo se připoj kódem</p>
+      <p class="sub">Create a room or join with code</p>
 
-      <h2>Tvoje jméno</h2>
-      <input id="nameInput" class="input" type="text" maxlength="16" placeholder="Nick" />
+      <h2>Your name</h2>
+      <input id="nameInput" class="input" type="text" maxlength="16" placeholder="Nickname" />
 
-      <h2>Vytvořit novou místnost</h2>
-      <button id="createBtn" class="btn btn-primary">Vytvořit místnost</button>
+      <h2>Create new room</h2>
+      <button id="createBtn" class="btn btn-primary">Create room</button>
 
-      <h2>Připojit se ke kámošovi</h2>
+      <h2>Join your friend</h2>
       <div class="row">
-        <input id="codeInput" class="input" type="text" maxlength="5" placeholder="KÓD" style="text-transform: uppercase;" />
-        <button id="joinBtn" class="btn btn-primary">Připojit</button>
+        <input id="codeInput" class="input" type="text" maxlength="5" placeholder="CODE" style="text-transform: uppercase;" />
+        <button id="joinBtn" class="btn btn-primary">Join</button>
       </div>
       <div class="err" id="menuErr"></div>
     </div>
@@ -315,29 +319,29 @@
   <!-- ═══ LOBBY ═══ -->
   <div id="screen-lobby" class="screen">
     <div class="col">
-      <div style="font-size: 12px; color: #9ca3af;">Kód místnosti</div>
+      <div style="font-size: 12px; color: #9ca3af;">Room code</div>
       <div class="room-code" id="roomCodeEl">-----</div>
-      <div class="copy-hint">Klikni na kód a zkopíruj (Ctrl+C)</div>
+      <div class="copy-hint">Click code to select (Ctrl+C)</div>
 
-      <h2 style="margin: 16px 0 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Hráči</h2>
+      <h2 style="margin: 16px 0 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Players</h2>
       <ul class="player-list" id="playerList"></ul>
 
       <div class="lobby-actions">
         <button id="readyBtn" class="btn btn-secondary">Ready</button>
-        <button id="startBtn" class="btn btn-primary" disabled>Start hry</button>
-        <button id="leaveBtn" class="btn btn-danger">Odejít</button>
+        <button id="startBtn" class="btn btn-primary" disabled>Start game</button>
+        <button id="leaveBtn" class="btn btn-danger">Leave</button>
       </div>
       <div class="err" id="lobbyErr"></div>
     </div>
 
     <div class="col">
-      <h2 style="margin-bottom: 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Vyber postavu</h2>
+      <h2 style="margin-bottom: 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Choose character</h2>
       <div class="char-grid" id="charGrid"></div>
 
       <h2 style="margin: 16px 0 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Chat</h2>
       <div class="chat">
         <div class="chat-log" id="chatLog"></div>
-        <input id="chatInput" class="chat-input" type="text" maxlength="200" placeholder="Napiš zprávu a Enter..." />
+        <input id="chatInput" class="chat-input" type="text" maxlength="200" placeholder="Type a message and press Enter..." />
       </div>
     </div>
   </div>
@@ -346,24 +350,22 @@
   <div id="screen-game" class="screen">
     <canvas id="game" width="960" height="600"></canvas>
     <div id="hud"></div>
-    <div id="help">WASD pohyb · Myš mířit · LMB střela · 1/2/3 zbraň · Q schopnost · Z chat · ESC menu</div>
+    <div id="help">WASD move · Mouse aim · LMB shoot · 1/2/3 weapon · Q ability · Z chat · ESC menu</div>
 
-    <!-- Toast zprávy (zobrazí se a zmizí) -->
-
-    <!-- Chat — vždy přítomný, otevírá se klávesou Z -->
+    <!-- Chat — always present, opens with Z key -->
     <div id="gameChat">
       <div id="gameChatLog"></div>
-      <input id="gameChatInput" type="text" maxlength="200" placeholder="Napiš zprávu... (Enter = odeslat, Esc = zrušit)" />
+      <input id="gameChatInput" type="text" maxlength="200" placeholder="Type a message... (Enter = send, Esc = cancel)" />
     </div>
 
     <!-- Pause menu -->
     <div id="pauseOverlay" class="overlay">
       <div class="panel">
-        <h1>⏸ Pauza</h1>
-        <p style="color:#9ca3af; margin-bottom: 16px;">Hra je pauznutá jen pro tebe — ostatní pokračují.</p>
-        <button id="resumeBtn" class="btn btn-primary">Pokračovat (ESC)</button>
-        <button id="settingsBtn" class="btn btn-secondary">Nastavení / Keybinds</button>
-        <button id="backToLobbyBtn" class="btn btn-danger">Zpět do lobby</button>
+        <h1>⏸ Paused</h1>
+        <p style="color:#9ca3af; margin-bottom: 16px;">Game is paused for you only — others continue playing.</p>
+        <button id="resumeBtn" class="btn btn-primary">Resume (ESC)</button>
+        <button id="settingsBtn" class="btn btn-secondary">Settings / Keybinds</button>
+        <button id="backToLobbyBtn" class="btn btn-danger">Back to lobby</button>
       </div>
     </div>
 
@@ -371,10 +373,10 @@
     <div id="settingsOverlay" class="overlay">
       <div class="panel">
         <h1>⚙ Keybinds</h1>
-        <p style="color:#9ca3af; margin-bottom: 8px; font-size: 13px;">Klikni na klávesu a stiskni novou.</p>
+        <p style="color:#9ca3af; margin-bottom: 8px; font-size: 13px;">Click a key and press a new one.</p>
         <ul class="keybinds-list" id="keybindsList"></ul>
-        <button id="resetKeybindsBtn" class="btn btn-secondary">Obnovit výchozí</button>
-        <button id="closeSettingsBtn" class="btn btn-primary">Zpět</button>
+        <button id="resetKeybindsBtn" class="btn btn-secondary">Reset to defaults</button>
+        <button id="closeSettingsBtn" class="btn btn-primary">Back</button>
       </div>
     </div>
   </div>

@@ -1,4 +1,4 @@
-// GAME — všechno pro hru samotnou
+// GAME — handles the game itself
 import { CHARACTERS, ABILITIES } from './characters.js';
 import { WEAPONS, LOADOUTS } from './weapons.js';
 import { LocalPlayer } from './localPlayer.js';
@@ -19,14 +19,14 @@ const DEFAULT_KEYBINDS = {
 };
 
 const KEYBIND_LABELS = {
-  moveUp: 'Pohyb nahoru',
-  moveDown: 'Pohyb dolů',
-  moveLeft: 'Pohyb doleva',
-  moveRight: 'Pohyb doprava',
-  weapon1: 'Primární zbraň',
-  weapon2: 'Sekundární zbraň',
-  weapon3: 'Granát',
-  ability: 'Schopnost',
+  moveUp: 'Move up',
+  moveDown: 'Move down',
+  moveLeft: 'Move left',
+  moveRight: 'Move right',
+  weapon1: 'Primary weapon',
+  weapon2: 'Secondary weapon',
+  weapon3: 'Grenade',
+  ability: 'Ability',
   chat: 'Chat',
 };
 
@@ -116,7 +116,7 @@ export function initGame({ session, showScreen }) {
       return;
     }
 
-    // 2) Chat input má focus
+    // 2) Chat input has focus
     if (chatInput && tag === 'INPUT' && e.target === chatInput) {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -132,10 +132,10 @@ export function initGame({ session, showScreen }) {
       return;
     }
 
-    // 3) Jiný input element — neblokuj
+    // 3) Other input element — do not block
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
-    // 4) ESC otvírá / zavírá pause menu
+    // 4) ESC opens/closes pause menu
     if (e.key === 'Escape') {
       e.preventDefault();
       if (settingsOpen) {
@@ -147,7 +147,7 @@ export function initGame({ session, showScreen }) {
       return;
     }
 
-    // 5) Herní klávesy — jen když není overlay
+    // 5) Game keys — only when no overlay is open
     if (!me || isInputBlocked()) return;
 
     const k = e.key.toLowerCase();
@@ -206,7 +206,7 @@ export function initGame({ session, showScreen }) {
     chatLog.appendChild(line);
     chatLog.scrollTop = chatLog.scrollHeight;
 
-    // staré zprávy odstraň po fadeOut animaci (jen když není chat aktivně otevřený)
+    // remove old messages after fade animation (only when chat is not actively open)
     if (!chatOpen) {
       setTimeout(() => {
         if (line.parentNode && !chatOpen) line.remove();
@@ -357,7 +357,7 @@ export function initGame({ session, showScreen }) {
     }
 
     if (!me) {
-      console.error('Nepodařilo se najít vlastního hráče!');
+      console.error('Failed to find local player!');
       return;
     }
 
@@ -460,7 +460,7 @@ export function initGame({ session, showScreen }) {
 
     if (p.name) {
       ctx.fillStyle = '#fff';
-      ctx.font = '12px monospace';
+      ctx.font = '12px "Silkscreen", monospace';
       ctx.textAlign = 'center';
       ctx.fillText(p.name, p.x, p.y - 36);
     }
@@ -506,11 +506,11 @@ export function initGame({ session, showScreen }) {
       for (const b of bullets) drawBullet(b);
 
       const ab = me.character.ability;
-      const cd = me.abilityCooldown > 0 ? me.abilityCooldown.toFixed(1) + 's' : 'připraveno';
+      const cd = me.abilityCooldown > 0 ? me.abilityCooldown.toFixed(1) + 's' : 'ready';
       hud.textContent =
         `HP ${Math.round(me.hp)}/${me.maxHp} | ` +
         `Slot: ${activeSlot} (${loadout?.[activeSlot] || '?'}) | ` +
-        `${ab.id}: ${cd} | Hráči: ${1 + Object.keys(remotes).length}`;
+        `${ab.id}: ${cd} | Players: ${1 + Object.keys(remotes).length}`;
     }
 
     requestAnimationFrame(loop);

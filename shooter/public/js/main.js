@@ -1,12 +1,12 @@
-// MAIN — vstupní bod
+// MAIN — entry point
 import { initLobby } from './lobby.js';
 import { initGame } from './game.js';
 
 const socket = io();
 
 const connStatus = document.getElementById('connStatus');
-socket.on('connect',    () => { connStatus.textContent = 'připojeno';  connStatus.className = 'conn-status connected'; });
-socket.on('disconnect', () => { connStatus.textContent = 'odpojeno';   connStatus.className = 'conn-status disconnected'; });
+socket.on('connect',    () => { connStatus.textContent = 'connected';    connStatus.className = 'conn-status connected'; });
+socket.on('disconnect', () => { connStatus.textContent = 'disconnected'; connStatus.className = 'conn-status disconnected'; });
 socket.on('connect_error', (e) => console.error('connect_error:', e));
 
 const session = {

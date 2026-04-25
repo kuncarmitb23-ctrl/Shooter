@@ -97,7 +97,7 @@ io.on('connection', (socket) => {
       broadcastLobby(code);
     } catch (e) {
       console.error('lobby:create error:', e);
-      cb && cb({ ok: false, error: 'Chyba serveru' });
+      cb && cb({ ok: false, error: 'Server error' });
     }
   });
 
@@ -109,10 +109,10 @@ io.on('connection', (socket) => {
       const character = String(data?.character || 'soldier');
 
       const room = rooms[code];
-      if (!room) return cb && cb({ ok: false, error: 'Místnost neexistuje' });
-      if (room.started) return cb && cb({ ok: false, error: 'Hra už začala' });
+      if (!room) return cb && cb({ ok: false, error: 'Room does not exist' });
+      if (room.started) return cb && cb({ ok: false, error: 'Game already started' });
       if (Object.keys(room.players).length >= MAX_PLAYERS) {
-        return cb && cb({ ok: false, error: 'Místnost plná' });
+        return cb && cb({ ok: false, error: 'Room is full' });
       }
 
       room.players[socket.id] = {
@@ -124,7 +124,7 @@ io.on('connection', (socket) => {
       broadcastLobby(code);
     } catch (e) {
       console.error('lobby:join error:', e);
-      cb && cb({ ok: false, error: 'Chyba serveru' });
+      cb && cb({ ok: false, error: 'Server error' });
     }
   });
 
@@ -162,7 +162,7 @@ io.on('connection', (socket) => {
     if (room.hostId !== socket.id) return;
     const players = Object.values(room.players);
     if (!players.every(p => p.ready)) {
-      socket.emit('lobby:error', 'Někteří hráči nejsou ready');
+      socket.emit('lobby:error', 'Some players are not ready');
       return;
     }
     room.started = true;
