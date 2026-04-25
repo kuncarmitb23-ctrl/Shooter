@@ -191,23 +191,42 @@
       opacity: 0.7; font-size: 12px; font-family: monospace;
     }
 
-    /* ─── In-game chat overlay ─── */
+    /* ─── In-game chat ─── */
     #gameChat {
       position: fixed; bottom: 40px; left: 12px;
       width: 360px; max-width: 40vw;
-      pointer-events: none; /* default neblokuje hru */
+      pointer-events: none;
       font-family: monospace; font-size: 13px;
+      display: flex; flex-direction: column;
+      gap: 6px;
     }
+    /* Log zpráv — vždy viditelný, zprávy mizí samy */
     #gameChatLog {
       max-height: 180px; overflow-y: auto;
+      display: flex; flex-direction: column;
+      gap: 3px;
+    }
+    #gameChatLog .msg {
+      background: rgba(0,0,0,0.6);
+      padding: 4px 8px; border-radius: 4px;
+      word-wrap: break-word;
+      animation: fadeOut 6s forwards;
+    }
+    /* Když je chat aktivně otevřený, zprávy nemizí a celý log má pozadí */
+    #gameChat.active #gameChatLog {
       background: rgba(0,0,0,0.5);
       padding: 8px; border-radius: 4px;
-      margin-bottom: 6px;
-      display: none;
+      max-height: 220px;
     }
-    #gameChatLog.visible { display: block; }
-    #gameChatLog .msg { margin-bottom: 3px; word-wrap: break-word; }
+    #gameChat.active #gameChatLog .msg {
+      animation: none;
+      opacity: 1;
+      background: transparent;
+      padding: 2px 0;
+    }
     #gameChatLog .from { color: #4ecdc4; font-weight: 600; }
+
+    /* Input — skrytý dokud nestiskneš Z */
     #gameChatInput {
       display: none;
       width: 100%; padding: 8px 10px;
@@ -217,21 +236,8 @@
       pointer-events: auto;
       outline: none;
     }
-    #gameChatInput.visible { display: block; }
+    #gameChat.active #gameChatInput { display: block; }
 
-    /* zprávy se po chvíli skryjí — toast efekt */
-    #gameChatToast {
-      position: fixed; bottom: 90px; left: 12px;
-      width: 360px; max-width: 40vw;
-      font-family: monospace; font-size: 13px;
-      pointer-events: none;
-    }
-    #gameChatToast .msg {
-      background: rgba(0,0,0,0.6);
-      padding: 4px 8px; border-radius: 4px;
-      margin-bottom: 3px;
-      animation: fadeOut 6s forwards;
-    }
     @keyframes fadeOut {
       0% { opacity: 1; }
       75% { opacity: 1; }
@@ -343,9 +349,8 @@
     <div id="help">WASD pohyb · Myš mířit · LMB střela · 1/2/3 zbraň · Q schopnost · Z chat · ESC menu</div>
 
     <!-- Toast zprávy (zobrazí se a zmizí) -->
-    <div id="gameChatToast"></div>
 
-    <!-- Plný chat (otevře se po Z) -->
+    <!-- Chat — vždy přítomný, otevírá se klávesou Z -->
     <div id="gameChat">
       <div id="gameChatLog"></div>
       <input id="gameChatInput" type="text" maxlength="200" placeholder="Napiš zprávu... (Enter = odeslat, Esc = zrušit)" />

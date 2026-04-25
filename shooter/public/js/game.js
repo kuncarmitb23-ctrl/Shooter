@@ -55,7 +55,7 @@ export function initGame({ session, showScreen }) {
   // ── In-game UI elementy ───────────────────────
   const chatLog       = document.getElementById('gameChatLog');
   const chatInput     = document.getElementById('gameChatInput');
-  const chatToast     = document.getElementById('gameChatToast');
+  const gameChat      = document.getElementById('gameChat');
   const pauseOverlay  = document.getElementById('pauseOverlay');
   const settingsOverlay = document.getElementById('settingsOverlay');
   const keybindsList  = document.getElementById('keybindsList');
@@ -183,8 +183,7 @@ export function initGame({ session, showScreen }) {
   // ── Chat UI ──────────────────────────────────
   function openChatInput() {
     chatOpen = true;
-    chatLog.classList.add('visible');
-    chatInput.classList.add('visible');
+    gameChat.classList.add('active');
     setTimeout(() => chatInput.focus(), 0);
     for (const k in keys) keys[k] = false;
     mouse.down = false;
@@ -192,36 +191,27 @@ export function initGame({ session, showScreen }) {
 
   function closeChatInput() {
     chatOpen = false;
-    chatInput.classList.remove('visible');
+    gameChat.classList.remove('active');
     chatInput.blur();
-    setTimeout(() => {
-      if (!chatOpen) chatLog.classList.remove('visible');
-    }, 4000);
   }
 
   function appendChatMessage(from, text) {
-    // toast (krátkodobé)
-    const toast = document.createElement('div');
-    toast.className = 'msg';
-    const fromEl = document.createElement('span');
-    fromEl.className = 'from';
-    fromEl.style.color = '#4ecdc4';
-    fromEl.textContent = from + ': ';
-    toast.appendChild(fromEl);
-    toast.appendChild(document.createTextNode(text));
-    chatToast.appendChild(toast);
-    setTimeout(() => toast.remove(), 6000);
-
-    // log (perzistentní)
     const line = document.createElement('div');
     line.className = 'msg';
-    const fromEl2 = document.createElement('span');
-    fromEl2.className = 'from';
-    fromEl2.textContent = from + ': ';
-    line.appendChild(fromEl2);
+    const fromEl = document.createElement('span');
+    fromEl.className = 'from';
+    fromEl.textContent = from + ': ';
+    line.appendChild(fromEl);
     line.appendChild(document.createTextNode(text));
     chatLog.appendChild(line);
     chatLog.scrollTop = chatLog.scrollHeight;
+
+    // staré zprávy odstraň po fadeOut animaci (jen když není chat aktivně otevřený)
+    if (!chatOpen) {
+      setTimeout(() => {
+        if (line.parentNode && !chatOpen) line.remove();
+      }, 6500);
+    }
   }
 
   socket.on('lobby:chat', ({ from, text }) => {
@@ -346,9 +336,7 @@ export function initGame({ session, showScreen }) {
     me = null;
     chatOpen = false; pauseOpen = false; settingsOpen = false; bindingKey = null;
     chatLog.innerHTML = '';
-    chatToast.innerHTML = '';
-    chatLog.classList.remove('visible');
-    chatInput.classList.remove('visible');
+    gameChat.classList.remove('active');
     pauseOverlay.classList.remove('visible');
     settingsOverlay.classList.remove('visible');
 
