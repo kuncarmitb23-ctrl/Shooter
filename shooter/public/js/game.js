@@ -49,7 +49,9 @@ export function initGame({ session, showScreen }) {
   // ── Canvas ────────────────────────────────────
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-  const view = { w: canvas.width, h: canvas.height };
+  const view = { w: canvas.width, h: canvas.height };  // viewport (co vidíš)
+  const world = { w: 960, h: 600 };                    // velikost světa (přepíše gameStart)
+  const camera = { x: 0, y: 0 };                       // levý horní roh viewportu ve světě
   const hud = document.getElementById('hud');
 
   // ── In-game UI elementy ───────────────────────
@@ -69,7 +71,7 @@ export function initGame({ session, showScreen }) {
 
   // ── Stav ──────────────────────────────────────
   const keys = {};
-  const mouse = { x: 0, y: 0, down: false };
+  const mouse = { sx: 0, sy: 0, x: 0, y: 0, down: false };  // sx/sy = screen, x/y = world
 
   let me = null;
   let remotes = {};
@@ -201,8 +203,14 @@ export function initGame({ session, showScreen }) {
 
   canvas.addEventListener('mousemove', (e) => {
     const r = canvas.getBoundingClientRect();
-    mouse.x = e.clientX - r.left;
-    mouse.y = e.clientY - r.top;
+    // CSS škálování — canvas může být zobrazen v jiné velikosti
+    const sx = (e.clientX - r.left) * (canvas.width / r.width);
+    const sy = (e.clientY - r.top) * (canvas.height / r.height);
+    mouse.sx = sx;
+    mouse.sy = sy;
+    // world coords = screen + camera offset
+    mouse.x = sx + camera.x;
+    mouse.y = sy + camera.y;
   });
   canvas.addEventListener('mousedown', () => {
     if (isInputBlocked()) return;
@@ -440,6 +448,14 @@ export function initGame({ session, showScreen }) {
     settingsOverlay.classList.remove('visible');
     scoreboardEl.classList.remove('visible');
 
+    // World rozměry ze serveru
+    if (data.world) {
+      world.w = data.world.w;
+      world.h = data.world.h;
+    }
+    camera.x = 0;
+    camera.y = 0;
+
     for (const p of data.players) {
       const character = CHARACTERS[p.character] || CHARACTERS.soldier;
       if (p.id === session.selfId) {
@@ -531,7 +547,8 @@ export function initGame({ session, showScreen }) {
 
   // ── Render ───────────────────────────────────
   function clearCanvas() {
-    ctx.fillStyle = '#2a2a2a';
+    // tmavé pozadí mimo svět (bude vidět když je hráč u kraje)
+    ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, view.w, view.h);
   }
 
@@ -587,28 +604,53 @@ export function initGame({ session, showScreen }) {
   // ── Game loop ────────────────────────────────
   let lastT = performance.now();
 
+  function updateCamera() {
+    if (!me) return;
+    // kamera centrovaná na hráči
+    let cx = me.x - view.w / 2;
+    let cy = me.y - view.h / 2;
+    // omez aby kamera neutíkala mimo svět
+    cx = Math.max(0, Math.min(world.w - view.w, cx));
+    cy = Math.max(0, Math.min(world.h - view.h, cy));
+    camera.x = cx;
+    camera.y = cy;
+    // přepočet world coords pro myš (camera se mohla pohnout)
+    mouse.x = mouse.sx + camera.x;
+    mouse.y = mouse.sy + camera.y;
+  }
+
   function loop(now) {
     const dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
 
     if (me) {
       if (!pauseOpen) {
-        me.update(dt, readMovement(), mouse, view.w, view.h);
+        me.update(dt, readMovement(), mouse, world.w, world.h);
         tryShoot();
       }
 
       for (const id in remotes) remotes[id].update();
 
-      for (const b of bullets) b.update(dt, view.w, view.h);
+      for (const b of bullets) b.update(dt, world.w, world.h);
       checkBulletHits();
       for (let i = bullets.length - 1; i >= 0; i--) {
         if (bullets[i].dead) bullets.splice(i, 1);
       }
 
+      updateCamera();
+
+      // Render s offsetem kamery
       clearCanvas();
+
+      ctx.save();
+      ctx.translate(-camera.x, -camera.y);
+
+      drawWorld();
       for (const id in remotes) drawPlayer(remotes[id], false);
       drawPlayer(me, true);
       for (const b of bullets) drawBullet(b);
+
+      ctx.restore();
 
       const ab = me.character.ability;
       const cd = me.abilityCooldown > 0 ? me.abilityCooldown.toFixed(1) + 's' : 'ready';
@@ -619,6 +661,40 @@ export function initGame({ session, showScreen }) {
     }
 
     requestAnimationFrame(loop);
+  }
+
+  // ── Vykreslení světa (mřížka + hranice) ───────
+  function drawWorld() {
+    // pozadí celého světa
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(0, 0, world.w, world.h);
+
+    // mřížka 100×100 — viditelný offset při pohybu kamery
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 1;
+    const grid = 100;
+    // jen ty čáry co jsou ve viewportu (rychlejší)
+    const startX = Math.floor(camera.x / grid) * grid;
+    const endX   = camera.x + view.w;
+    const startY = Math.floor(camera.y / grid) * grid;
+    const endY   = camera.y + view.h;
+    for (let x = startX; x <= endX; x += grid) {
+      ctx.beginPath();
+      ctx.moveTo(x, camera.y);
+      ctx.lineTo(x, camera.y + view.h);
+      ctx.stroke();
+    }
+    for (let y = startY; y <= endY; y += grid) {
+      ctx.beginPath();
+      ctx.moveTo(camera.x, y);
+      ctx.lineTo(camera.x + view.w, y);
+      ctx.stroke();
+    }
+
+    // okraj světa — silnější červená linka
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, world.w, world.h);
   }
 
   console.log('game.js loaded');

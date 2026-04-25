@@ -9,7 +9,7 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const WORLD = { w: 960, h: 600 };
+const WORLD = { w: 2400, h: 2400 };
 const MAX_PLAYERS = 8;
 
 // ─────────────────────────────────────────────
