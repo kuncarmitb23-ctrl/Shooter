@@ -190,6 +190,95 @@
       position: fixed; bottom: 8px; left: 8px;
       opacity: 0.7; font-size: 12px; font-family: monospace;
     }
+
+    /* ─── In-game chat overlay ─── */
+    #gameChat {
+      position: fixed; bottom: 40px; left: 12px;
+      width: 360px; max-width: 40vw;
+      pointer-events: none; /* default neblokuje hru */
+      font-family: monospace; font-size: 13px;
+    }
+    #gameChatLog {
+      max-height: 180px; overflow-y: auto;
+      background: rgba(0,0,0,0.5);
+      padding: 8px; border-radius: 4px;
+      margin-bottom: 6px;
+      display: none;
+    }
+    #gameChatLog.visible { display: block; }
+    #gameChatLog .msg { margin-bottom: 3px; word-wrap: break-word; }
+    #gameChatLog .from { color: #4ecdc4; font-weight: 600; }
+    #gameChatInput {
+      display: none;
+      width: 100%; padding: 8px 10px;
+      background: rgba(0,0,0,0.7); border: 1px solid #4ecdc4;
+      color: #fff; border-radius: 4px;
+      font-family: monospace; font-size: 13px;
+      pointer-events: auto;
+      outline: none;
+    }
+    #gameChatInput.visible { display: block; }
+
+    /* zprávy se po chvíli skryjí — toast efekt */
+    #gameChatToast {
+      position: fixed; bottom: 90px; left: 12px;
+      width: 360px; max-width: 40vw;
+      font-family: monospace; font-size: 13px;
+      pointer-events: none;
+    }
+    #gameChatToast .msg {
+      background: rgba(0,0,0,0.6);
+      padding: 4px 8px; border-radius: 4px;
+      margin-bottom: 3px;
+      animation: fadeOut 6s forwards;
+    }
+    @keyframes fadeOut {
+      0% { opacity: 1; }
+      75% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    /* ─── Pause / Settings overlay ─── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: none;
+      align-items: center; justify-content: center;
+      z-index: 100;
+    }
+    .overlay.visible { display: flex; }
+    .overlay .panel { width: 380px; max-width: 90vw; }
+    .overlay h1 { font-size: 22px; }
+    .overlay .btn { width: 100%; margin-bottom: 8px; padding: 12px; }
+
+    /* keybinds list */
+    .keybinds-list {
+      list-style: none;
+      margin: 12px 0 16px;
+    }
+    .keybinds-list li {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 12px;
+      background: #111827; border-radius: 6px;
+      margin-bottom: 6px;
+    }
+    .keybinds-list .label { font-size: 13px; color: #9ca3af; }
+    .keybinds-list .key {
+      background: #374151; color: #4ecdc4;
+      padding: 4px 10px; border-radius: 4px;
+      font-family: monospace; font-weight: 700;
+      cursor: pointer; min-width: 60px; text-align: center;
+      border: 1px solid #4b5563;
+    }
+    .keybinds-list .key:hover { background: #4b5563; }
+    .keybinds-list .key.binding {
+      background: #4ecdc4; color: #111;
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
   </style>
 </head>
 <body>
@@ -251,7 +340,38 @@
   <div id="screen-game" class="screen">
     <canvas id="game" width="960" height="600"></canvas>
     <div id="hud"></div>
-    <div id="help">WASD pohyb · Myš mířit · LMB střela · 1/2/3 zbraň · Q schopnost</div>
+    <div id="help">WASD pohyb · Myš mířit · LMB střela · 1/2/3 zbraň · Q schopnost · Z chat · ESC menu</div>
+
+    <!-- Toast zprávy (zobrazí se a zmizí) -->
+    <div id="gameChatToast"></div>
+
+    <!-- Plný chat (otevře se po Z) -->
+    <div id="gameChat">
+      <div id="gameChatLog"></div>
+      <input id="gameChatInput" type="text" maxlength="200" placeholder="Napiš zprávu... (Enter = odeslat, Esc = zrušit)" />
+    </div>
+
+    <!-- Pause menu -->
+    <div id="pauseOverlay" class="overlay">
+      <div class="panel">
+        <h1>⏸ Pauza</h1>
+        <p style="color:#9ca3af; margin-bottom: 16px;">Hra je pauznutá jen pro tebe — ostatní pokračují.</p>
+        <button id="resumeBtn" class="btn btn-primary">Pokračovat (ESC)</button>
+        <button id="settingsBtn" class="btn btn-secondary">Nastavení / Keybinds</button>
+        <button id="backToLobbyBtn" class="btn btn-danger">Zpět do lobby</button>
+      </div>
+    </div>
+
+    <!-- Settings menu -->
+    <div id="settingsOverlay" class="overlay">
+      <div class="panel">
+        <h1>⚙ Keybinds</h1>
+        <p style="color:#9ca3af; margin-bottom: 8px; font-size: 13px;">Klikni na klávesu a stiskni novou.</p>
+        <ul class="keybinds-list" id="keybindsList"></ul>
+        <button id="resetKeybindsBtn" class="btn btn-secondary">Obnovit výchozí</button>
+        <button id="closeSettingsBtn" class="btn btn-primary">Zpět</button>
+      </div>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>

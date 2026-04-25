@@ -5,6 +5,44 @@ import { LocalPlayer } from './localPlayer.js';
 import { RemotePlayer } from './remotePlayer.js';
 import { Bullet } from './bullet.js';
 
+// ── Default keybinds ────────────────────────────
+const DEFAULT_KEYBINDS = {
+  moveUp:    'w',
+  moveDown:  's',
+  moveLeft:  'a',
+  moveRight: 'd',
+  weapon1:   '1',
+  weapon2:   '2',
+  weapon3:   '3',
+  ability:   'q',
+  chat:      'z',
+};
+
+const KEYBIND_LABELS = {
+  moveUp: 'Pohyb nahoru',
+  moveDown: 'Pohyb dolů',
+  moveLeft: 'Pohyb doleva',
+  moveRight: 'Pohyb doprava',
+  weapon1: 'Primární zbraň',
+  weapon2: 'Sekundární zbraň',
+  weapon3: 'Granát',
+  ability: 'Schopnost',
+  chat: 'Chat',
+};
+
+function loadKeybinds() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('shooter_keybinds') || '{}');
+    return { ...DEFAULT_KEYBINDS, ...saved };
+  } catch {
+    return { ...DEFAULT_KEYBINDS };
+  }
+}
+
+function saveKeybinds(kb) {
+  localStorage.setItem('shooter_keybinds', JSON.stringify(kb));
+}
+
 export function initGame({ session, showScreen }) {
   const socket = session.socket;
 
@@ -13,6 +51,19 @@ export function initGame({ session, showScreen }) {
   const ctx = canvas.getContext('2d');
   const view = { w: canvas.width, h: canvas.height };
   const hud = document.getElementById('hud');
+
+  // ── In-game UI elementy ───────────────────────
+  const chatLog       = document.getElementById('gameChatLog');
+  const chatInput     = document.getElementById('gameChatInput');
+  const chatToast     = document.getElementById('gameChatToast');
+  const pauseOverlay  = document.getElementById('pauseOverlay');
+  const settingsOverlay = document.getElementById('settingsOverlay');
+  const keybindsList  = document.getElementById('keybindsList');
+  const resumeBtn     = document.getElementById('resumeBtn');
+  const settingsBtn   = document.getElementById('settingsBtn');
+  const backToLobbyBtn = document.getElementById('backToLobbyBtn');
+  const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+  const resetKeybindsBtn = document.getElementById('resetKeybindsBtn');
 
   // ── Stav ──────────────────────────────────────
   const keys = {};
@@ -26,17 +77,90 @@ export function initGame({ session, showScreen }) {
   let stateInterval = null;
   let running = false;
 
-  // ── Input ─────────────────────────────────────
+  // UI stav
+  let chatOpen = false;
+  let pauseOpen = false;
+  let settingsOpen = false;
+  let bindingKey = null;
+
+  let keybinds = loadKeybinds();
+
+  function isInputBlocked() {
+    return chatOpen || pauseOpen || settingsOpen || bindingKey !== null;
+  }
+
+  // ── Input handler ─────────────────────────────
   addEventListener('keydown', (e) => {
     const tag = e.target?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    keys[e.key.toLowerCase()] = true;
 
-    if (!me) return;
-    if (e.key === '1') activeSlot = 'primary';
-    if (e.key === '2') activeSlot = 'secondary';
-    if (e.key === '3') activeSlot = 'grenade';
-    if (e.key.toLowerCase() === 'q') tryAbility();
+    // 1) Rebinding mode
+    if (bindingKey) {
+      e.preventDefault();
+      const newKey = e.key.toLowerCase();
+      if (['shift', 'control', 'alt', 'meta'].includes(newKey)) return;
+      if (newKey === 'escape') {
+        bindingKey = null;
+        renderKeybinds();
+        return;
+      }
+      // odstranit konflikty
+      for (const k in keybinds) {
+        if (keybinds[k] === newKey && k !== bindingKey) {
+          keybinds[k] = '';
+        }
+      }
+      keybinds[bindingKey] = newKey;
+      saveKeybinds(keybinds);
+      bindingKey = null;
+      renderKeybinds();
+      return;
+    }
+
+    // 2) Chat input má focus
+    if (chatInput && tag === 'INPUT' && e.target === chatInput) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const text = chatInput.value.trim();
+        if (text) socket.emit('lobby:chat', { text });
+        chatInput.value = '';
+        closeChatInput();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        chatInput.value = '';
+        closeChatInput();
+      }
+      return;
+    }
+
+    // 3) Jiný input element — neblokuj
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    // 4) ESC otvírá / zavírá pause menu
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (settingsOpen) {
+        closeSettings();
+        openPause();
+      } else {
+        togglePause();
+      }
+      return;
+    }
+
+    // 5) Herní klávesy — jen když není overlay
+    if (!me || isInputBlocked()) return;
+
+    const k = e.key.toLowerCase();
+    keys[k] = true;
+
+    if (k === keybinds.weapon1) activeSlot = 'primary';
+    if (k === keybinds.weapon2) activeSlot = 'secondary';
+    if (k === keybinds.weapon3) activeSlot = 'grenade';
+    if (k === keybinds.ability) tryAbility();
+    if (k === keybinds.chat) {
+      e.preventDefault();
+      openChatInput();
+    }
   });
 
   addEventListener('keyup', (e) => {
@@ -48,10 +172,132 @@ export function initGame({ session, showScreen }) {
     mouse.x = e.clientX - r.left;
     mouse.y = e.clientY - r.top;
   });
-  canvas.addEventListener('mousedown', () => { mouse.down = true; });
+  canvas.addEventListener('mousedown', () => {
+    if (isInputBlocked()) return;
+    mouse.down = true;
+  });
   canvas.addEventListener('mouseup',   () => { mouse.down = false; });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('selectstart', (e) => e.preventDefault());
+
+  // ── Chat UI ──────────────────────────────────
+  function openChatInput() {
+    chatOpen = true;
+    chatLog.classList.add('visible');
+    chatInput.classList.add('visible');
+    setTimeout(() => chatInput.focus(), 0);
+    for (const k in keys) keys[k] = false;
+    mouse.down = false;
+  }
+
+  function closeChatInput() {
+    chatOpen = false;
+    chatInput.classList.remove('visible');
+    chatInput.blur();
+    setTimeout(() => {
+      if (!chatOpen) chatLog.classList.remove('visible');
+    }, 4000);
+  }
+
+  function appendChatMessage(from, text) {
+    // toast (krátkodobé)
+    const toast = document.createElement('div');
+    toast.className = 'msg';
+    const fromEl = document.createElement('span');
+    fromEl.className = 'from';
+    fromEl.style.color = '#4ecdc4';
+    fromEl.textContent = from + ': ';
+    toast.appendChild(fromEl);
+    toast.appendChild(document.createTextNode(text));
+    chatToast.appendChild(toast);
+    setTimeout(() => toast.remove(), 6000);
+
+    // log (perzistentní)
+    const line = document.createElement('div');
+    line.className = 'msg';
+    const fromEl2 = document.createElement('span');
+    fromEl2.className = 'from';
+    fromEl2.textContent = from + ': ';
+    line.appendChild(fromEl2);
+    line.appendChild(document.createTextNode(text));
+    chatLog.appendChild(line);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  socket.on('lobby:chat', ({ from, text }) => {
+    appendChatMessage(from, text);
+  });
+
+  // ── Pause menu ────────────────────────────────
+  function togglePause() {
+    if (pauseOpen) closePause();
+    else openPause();
+  }
+
+  function openPause() {
+    pauseOpen = true;
+    pauseOverlay.classList.add('visible');
+    for (const k in keys) keys[k] = false;
+    mouse.down = false;
+  }
+
+  function closePause() {
+    pauseOpen = false;
+    pauseOverlay.classList.remove('visible');
+  }
+
+  resumeBtn.addEventListener('click', closePause);
+  settingsBtn.addEventListener('click', () => {
+    closePause();
+    openSettings();
+  });
+  backToLobbyBtn.addEventListener('click', () => {
+    location.reload();
+  });
+
+  // ── Settings ─────────────────────────────────
+  function openSettings() {
+    settingsOpen = true;
+    settingsOverlay.classList.add('visible');
+    renderKeybinds();
+  }
+
+  function closeSettings() {
+    settingsOpen = false;
+    bindingKey = null;
+    settingsOverlay.classList.remove('visible');
+  }
+
+  closeSettingsBtn.addEventListener('click', closeSettings);
+  resetKeybindsBtn.addEventListener('click', () => {
+    keybinds = { ...DEFAULT_KEYBINDS };
+    saveKeybinds(keybinds);
+    renderKeybinds();
+  });
+
+  function renderKeybinds() {
+    keybindsList.innerHTML = '';
+    for (const action in DEFAULT_KEYBINDS) {
+      const li = document.createElement('li');
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = KEYBIND_LABELS[action] || action;
+      li.appendChild(label);
+
+      const keyBtn = document.createElement('button');
+      keyBtn.className = 'key' + (bindingKey === action ? ' binding' : '');
+      keyBtn.textContent = bindingKey === action
+        ? '...'
+        : (keybinds[action] ? keybinds[action].toUpperCase() : '—');
+      keyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        bindingKey = action;
+        renderKeybinds();
+      });
+      li.appendChild(keyBtn);
+      keybindsList.appendChild(li);
+    }
+  }
 
   // ── Network ──────────────────────────────────
   socket.on('player:left', (id) => {
@@ -98,6 +344,13 @@ export function initGame({ session, showScreen }) {
     remotes = {};
     bullets = [];
     me = null;
+    chatOpen = false; pauseOpen = false; settingsOpen = false; bindingKey = null;
+    chatLog.innerHTML = '';
+    chatToast.innerHTML = '';
+    chatLog.classList.remove('visible');
+    chatInput.classList.remove('visible');
+    pauseOverlay.classList.remove('visible');
+    settingsOverlay.classList.remove('visible');
 
     for (const p of data.players) {
       const character = CHARACTERS[p.character] || CHARACTERS.soldier;
@@ -123,7 +376,7 @@ export function initGame({ session, showScreen }) {
     if (stateInterval) clearInterval(stateInterval);
     stateInterval = setInterval(() => {
       if (me) socket.emit('game:state', { x: me.x, y: me.y, angle: me.angle, hp: me.hp });
-    }, 33); // 30 Hz
+    }, 33);
 
     if (!running) {
       running = true;
@@ -133,14 +386,18 @@ export function initGame({ session, showScreen }) {
 
   // ── Akce ─────────────────────────────────────
   function readMovement() {
+    if (isInputBlocked()) return { up: false, down: false, left: false, right: false };
     return {
-      up: !!keys['w'], down: !!keys['s'],
-      left: !!keys['a'], right: !!keys['d'],
+      up:    !!keys[keybinds.moveUp],
+      down:  !!keys[keybinds.moveDown],
+      left:  !!keys[keybinds.moveLeft],
+      right: !!keys[keybinds.moveRight],
     };
   }
 
   function tryShoot() {
     if (!me || !mouse.down || me.fireCooldown > 0 || !loadout) return;
+    if (isInputBlocked()) return;
     const wn = loadout[activeSlot];
     const w = WEAPONS[wn];
     if (!w) return;
@@ -170,6 +427,7 @@ export function initGame({ session, showScreen }) {
 
   function tryAbility() {
     if (!me || me.abilityCooldown > 0) return;
+    if (isInputBlocked()) return;
     const ab = me.character.ability;
     if (!ab) return;
     const handler = ABILITIES[ab.id];
@@ -241,8 +499,10 @@ export function initGame({ session, showScreen }) {
     lastT = now;
 
     if (me) {
-      me.update(dt, readMovement(), mouse, view.w, view.h);
-      tryShoot();
+      if (!pauseOpen) {
+        me.update(dt, readMovement(), mouse, view.w, view.h);
+        tryShoot();
+      }
 
       for (const id in remotes) remotes[id].update();
 
