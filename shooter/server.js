@@ -9,7 +9,13 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const WORLD = { w: 2400, h: 2400 };
+const WORLD_SIZES = {
+  small:  { w: 960,  h: 600,  label: 'Small (1 screen)' },
+  medium: { w: 1400, h: 900,  label: 'Medium' },
+  large:  { w: 2400, h: 1800, label: 'Large' },
+  huge:   { w: 3200, h: 3200, label: 'Huge' },
+};
+const DEFAULT_MAP = 'medium';
 const MAX_PLAYERS = 8;
 
 // ─────────────────────────────────────────────
@@ -32,6 +38,13 @@ function lobbySnapshot(room) {
     code: room.code,
     hostId: room.hostId,
     started: room.started,
+    mapSize: room.mapSize || DEFAULT_MAP,
+    availableMaps: Object.keys(WORLD_SIZES).map(id => ({
+      id,
+      label: WORLD_SIZES[id].label,
+      w: WORLD_SIZES[id].w,
+      h: WORLD_SIZES[id].h,
+    })),
     players: Object.values(room.players).map(p => ({
       id: p.id,
       name: p.name,
@@ -101,6 +114,7 @@ io.on('connection', (socket) => {
         code,
         hostId: socket.id,
         started: false,
+        mapSize: DEFAULT_MAP,
         players: {
           [socket.id]: { id: socket.id, name, character, ready: true, isHost: true },
         },
@@ -160,6 +174,16 @@ io.on('connection', (socket) => {
     broadcastLobby(roomCode);
   });
 
+  socket.on('lobby:setMapSize', (data) => {
+    const room = rooms[roomCode];
+    if (!room || room.started) return;
+    if (room.hostId !== socket.id) return; // jenom host
+    const id = String(data?.mapSize || '');
+    if (!WORLD_SIZES[id]) return;
+    room.mapSize = id;
+    broadcastLobby(roomCode);
+  });
+
   socket.on('lobby:chat', (data) => {
     const room = rooms[roomCode];
     if (!room) return;
@@ -180,15 +204,17 @@ io.on('connection', (socket) => {
       return;
     }
     room.started = true;
+    const world = WORLD_SIZES[room.mapSize] || WORLD_SIZES[DEFAULT_MAP];
     for (const p of players) {
-      p.x = 100 + Math.random() * (WORLD.w - 200);
-      p.y = 100 + Math.random() * (WORLD.h - 200);
+      p.x = 100 + Math.random() * (world.w - 200);
+      p.y = 100 + Math.random() * (world.h - 200);
       p.hp = 100; p.maxHp = 100; p.angle = 0;
       p.lastUpdate = Date.now(); p.shotTimes = [];
       p.kills = 0; p.deaths = 0; p.ping = 0;
     }
+    room.world = { w: world.w, h: world.h }; // ulož pro pozdější použití (hit, state)
     io.to(roomCode).emit('game:start', {
-      world: WORLD,
+      world: { w: world.w, h: world.h },
       players: players.map(p => ({
         id: p.id, name: p.name, character: p.character,
         x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp,
@@ -204,8 +230,8 @@ io.on('connection', (socket) => {
     if (!p) return;
     if (typeof s?.x !== 'number' || typeof s?.y !== 'number') return;
 
-    p.x = Math.max(0, Math.min(WORLD.w, s.x));
-    p.y = Math.max(0, Math.min(WORLD.h, s.y));
+    p.x = Math.max(0, Math.min(room.world.w, s.x));
+    p.y = Math.max(0, Math.min(room.world.h, s.y));
     p.angle = s.angle ?? 0;
     p.hp = s.hp ?? p.hp;
 
@@ -248,8 +274,8 @@ io.on('connection', (socket) => {
       target.deaths = (target.deaths || 0) + 1;
 
       target.hp = target.maxHp;
-      target.x = 100 + Math.random() * (WORLD.w - 200);
-      target.y = 100 + Math.random() * (WORLD.h - 200);
+      target.x = 100 + Math.random() * (room.world.w - 200);
+      target.y = 100 + Math.random() * (room.world.h - 200);
       io.to(roomCode).emit('game:respawn', {
         id: socket.id, x: target.x, y: target.y, hp: target.hp,
       });

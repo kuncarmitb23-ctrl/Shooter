@@ -103,8 +103,38 @@ export function initLobby({ session, showScreen, onStartGame }) {
     session.selfId = socket.id;
     roomCodeEl.textContent = room.code;
     renderPlayerList(room);
+    renderMapSizes(room);
     updateButtons(room);
   });
+
+  function renderMapSizes(room) {
+    const el = document.getElementById('mapSizeGrid');
+    if (!el) return;
+    el.innerHTML = '';
+    const isHost = room.players.find(p => p.id === socket.id)?.isHost;
+    for (const m of (room.availableMaps || [])) {
+      const card = document.createElement('div');
+      card.className = 'map-card' + (room.mapSize === m.id ? ' selected' : '');
+      if (!isHost) card.classList.add('readonly');
+
+      const name = document.createElement('div');
+      name.className = 'mname';
+      name.textContent = m.label;
+      card.appendChild(name);
+
+      const dim = document.createElement('div');
+      dim.className = 'mdim';
+      dim.textContent = m.w + ' × ' + m.h;
+      card.appendChild(dim);
+
+      if (isHost) {
+        card.addEventListener('click', () => {
+          socket.emit('lobby:setMapSize', { mapSize: m.id });
+        });
+      }
+      el.appendChild(card);
+    }
+  }
 
   function renderPlayerList(room) {
     playerListEl.innerHTML = '';

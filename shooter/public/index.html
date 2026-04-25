@@ -155,6 +155,21 @@
     .char-card .cname { font-weight: 700; font-size: 14px; }
     .char-card .cab { font-size: 11px; color: #9ca3af; margin-top: 4px; }
 
+    .map-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .map-card {
+      background: #111827;
+      border: 2px solid #374151;
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .map-card.readonly { cursor: default; opacity: 0.85; }
+    .map-card:not(.readonly):hover { border-color: #4b5563; }
+    .map-card.selected { border-color: #4ecdc4; background: #0f1f1d; }
+    .map-card .mname { font-weight: 700; font-size: 13px; }
+    .map-card .mdim { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+
     .chat {
       display: flex; flex-direction: column;
       height: 200px;
@@ -339,6 +354,17 @@
     #scoreboard .ping-good { color: #5ec85e; }
     #scoreboard .ping-mid  { color: #ffe066; }
     #scoreboard .ping-bad  { color: #ff6b6b; }
+
+    /* ─── Minimap ─── */
+    #minimap {
+      position: fixed;
+      bottom: 12px; right: 12px;
+      background: rgba(0,0,0,0.6);
+      border: 2px solid #4ecdc4;
+      border-radius: 4px;
+      pointer-events: none;
+      z-index: 50;
+    }
   </style>
 </head>
 <body>
@@ -388,6 +414,9 @@
       <h2 style="margin-bottom: 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Choose character</h2>
       <div class="char-grid" id="charGrid"></div>
 
+      <h2 style="margin: 16px 0 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Map size <span id="mapHostHint" style="font-size: 11px; opacity: 0.7;">(host only)</span></h2>
+      <div class="map-grid" id="mapSizeGrid"></div>
+
       <h2 style="margin: 16px 0 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Chat</h2>
       <div class="chat">
         <div class="chat-log" id="chatLog"></div>
@@ -407,6 +436,9 @@
       <div id="gameChatLog"></div>
       <input id="gameChatInput" type="text" maxlength="200" placeholder="Type a message... (Enter = send, Esc = cancel)" />
     </div>
+
+    <!-- Minimap -->
+    <canvas id="minimap" width="180" height="180"></canvas>
 
     <!-- Scoreboard (hold TAB) -->
     <div id="scoreboard">

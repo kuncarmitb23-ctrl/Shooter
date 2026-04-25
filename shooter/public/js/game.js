@@ -69,6 +69,11 @@ export function initGame({ session, showScreen }) {
   const scoreboardEl = document.getElementById('scoreboard');
   const scoreboardBody = document.getElementById('scoreboardBody');
 
+  // ── Minimap ───────────────────────────────────
+  const minimap = document.getElementById('minimap');
+  const mctx = minimap.getContext('2d');
+  const MINIMAP_SIZE = 180;
+
   // ── Stav ──────────────────────────────────────
   const keys = {};
   const mouse = { sx: 0, sy: 0, x: 0, y: 0, down: false };  // sx/sy = screen, x/y = world
@@ -652,6 +657,8 @@ export function initGame({ session, showScreen }) {
 
       ctx.restore();
 
+      drawMinimap();
+
       const ab = me.character.ability;
       const cd = me.abilityCooldown > 0 ? me.abilityCooldown.toFixed(1) + 's' : 'ready';
       hud.textContent =
@@ -695,6 +702,58 @@ export function initGame({ session, showScreen }) {
     ctx.strokeStyle = '#ff6b6b';
     ctx.lineWidth = 3;
     ctx.strokeRect(0, 0, world.w, world.h);
+  }
+
+  // ── Minimap ──────────────────────────────────
+  function drawMinimap() {
+    if (!me) return;
+    // měřítko: ať se celý svět vejde do MINIMAP_SIZE
+    const scale = Math.min(MINIMAP_SIZE / world.w, MINIMAP_SIZE / world.h);
+    const w = world.w * scale;
+    const h = world.h * scale;
+    // vycentruj v rámci canvasu
+    const ox = (MINIMAP_SIZE - w) / 2;
+    const oy = (MINIMAP_SIZE - h) / 2;
+
+    // pozadí
+    mctx.fillStyle = 'rgba(20, 20, 30, 0.4)';
+    mctx.fillRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+
+    // hranice světa
+    mctx.fillStyle = 'rgba(60, 70, 90, 0.6)';
+    mctx.fillRect(ox, oy, w, h);
+    mctx.strokeStyle = '#4ecdc4';
+    mctx.lineWidth = 1;
+    mctx.strokeRect(ox, oy, w, h);
+
+    // viewport rectangle (kde se aktuálně dívám)
+    const vx = ox + camera.x * scale;
+    const vy = oy + camera.y * scale;
+    const vw = view.w * scale;
+    const vh = view.h * scale;
+    mctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    mctx.lineWidth = 1;
+    mctx.strokeRect(vx, vy, vw, vh);
+
+    // ostatní hráči — červené tečky
+    for (const id in remotes) {
+      const r = remotes[id];
+      const inv = r.invisibleUntil && Date.now() < r.invisibleUntil;
+      if (inv) continue; // neviditelní se na minimapě nezobrazí
+      mctx.fillStyle = '#ff6b6b';
+      mctx.beginPath();
+      mctx.arc(ox + r.x * scale, oy + r.y * scale, 3, 0, Math.PI * 2);
+      mctx.fill();
+    }
+
+    // já — tyrkysová tečka
+    mctx.fillStyle = '#4ecdc4';
+    mctx.beginPath();
+    mctx.arc(ox + me.x * scale, oy + me.y * scale, 4, 0, Math.PI * 2);
+    mctx.fill();
+    mctx.strokeStyle = '#fff';
+    mctx.lineWidth = 1;
+    mctx.stroke();
   }
 
   console.log('game.js loaded');
