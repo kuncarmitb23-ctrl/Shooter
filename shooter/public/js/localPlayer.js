@@ -10,9 +10,9 @@ export class LocalPlayer {
     this.color = character.color;
     this.fireCooldown = 0;
     this.abilityCooldown = 0;
-    // status flagy (využívají schopnosti)
     this.shieldUntil = 0;
     this.invisibleUntil = 0;
+    this.name = '';
   }
 
   update(dt, input, mouse, worldW, worldH) {
@@ -27,7 +27,6 @@ export class LocalPlayer {
     this.x += dx * this.speed * dt;
     this.y += dy * this.speed * dt;
 
-    // clamp do světa
     this.x = Math.max(18, Math.min(worldW - 18, this.x));
     this.y = Math.max(18, Math.min(worldH - 18, this.y));
 
