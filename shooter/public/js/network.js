@@ -1,25 +1,22 @@
-export const socket = io();
+import { socket } from './lobby.js';
+
+export { socket };
 
 export const net = {
   selfId: null,
   world: { w: 960, h: 600 },
-  remotes: {},   // id -> RemotePlayer
-  onInit: null,
+  remotes: {},
+  initialPlayers: [],     // hráči z lobby (jména, postavy)
   onShoot: null,
   onAbility: null,
   onCorrection: null,
+  onPlayerLeft: null,
 };
 
-socket.on('init', (data) => {
-  net.selfId = data.id;
-  net.world = data.world;
-  for (const id in data.players) {
-    if (id !== net.selfId) net.onInit?.(data.players[id]);
-  }
+socket.on('playerLeft', (id) => {
+  delete net.remotes[id];
+  net.onPlayerLeft?.(id);
 });
-
-socket.on('playerJoined', (p) => { if (p.id !== net.selfId) net.onInit?.(p); });
-socket.on('playerLeft',   (id) => { delete net.remotes[id]; });
 
 socket.on('playerState', (s) => {
   const r = net.remotes[s.id];

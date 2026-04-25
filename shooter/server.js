@@ -10,106 +10,251 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, 'public')));
 
 const WORLD = { w: 960, h: 600 };
-const MAX_SPEED = 320;          // px/s — mírně nad nejrychlejší postavou
-const MAX_FIRE_RATE = 15;       // výstřelů/s globální limit
-const STATE_RATE_LIMIT = 40;    // updatů/s na hráče
+const MAX_SPEED = 320;
+const MAX_FIRE_RATE = 15;
+const STATE_RATE_LIMIT = 40;
 
-const players = {}; // id -> last validated snapshot
+// ─────────────────────────────────────────────
+// Místnosti
+// ─────────────────────────────────────────────
+// rooms[code] = {
+//   code, hostId, started,
+//   players: { [socketId]: { id, name, character, ready, isHost } }
+// }
+const rooms = {};
 
+function generateCode() {
+  let code;
+  do {
+    code = Math.random().toString(36).substring(2, 7).toUpperCase();
+  } while (rooms[code]);
+  return code;
+}
+
+function roomPublicState(room) {
+  return {
+    code: room.code,
+    hostId: room.hostId,
+    started: room.started,
+    players: Object.values(room.players).map(p => ({
+      id: p.id,
+      name: p.name,
+      character: p.character,
+      ready: p.ready,
+      isHost: p.isHost,
+    })),
+  };
+}
+
+function broadcastLobby(code) {
+  const room = rooms[code];
+  if (!room) return;
+  io.to(code).emit('lobbyUpdate', roomPublicState(room));
+}
+
+// ─────────────────────────────────────────────
+// Game state per room
+// ─────────────────────────────────────────────
+function initGameState(room) {
+  for (const id in room.players) {
+    const p = room.players[id];
+    p.x = Math.random() * WORLD.w;
+    p.y = Math.random() * WORLD.h;
+    p.angle = 0;
+    p.hp = 100;
+    p.maxHp = 100;
+    p.lastUpdate = Date.now();
+    p.shotTimes = [];
+  }
+}
+
+// ─────────────────────────────────────────────
+// Sockets
+// ─────────────────────────────────────────────
 io.on('connection', (socket) => {
   console.log('connect', socket.id);
+  let currentRoom = null;
 
-  players[socket.id] = {
-    id: socket.id,
-    x: Math.random() * WORLD.w,
-    y: Math.random() * WORLD.h,
-    angle: 0,
-    hp: 100,
-    maxHp: 100,
-    character: 'soldier',
-    color: '#4ecdc4',
-    lastUpdate: Date.now(),
-    shotTimes: [],
-  };
+  // ── LOBBY ──────────────────────────────────
+  socket.on('createRoom', ({ name, character }, cb) => {
+    const code = generateCode();
+    rooms[code] = {
+      code,
+      hostId: socket.id,
+      started: false,
+      players: {
+        [socket.id]: {
+          id: socket.id,
+          name: (name || 'Player').slice(0, 16),
+          character: character || 'soldier',
+          ready: true, // host je rovnou ready
+          isHost: true,
+        },
+      },
+    };
+    socket.join(code);
+    currentRoom = code;
+    cb?.({ ok: true, code });
+    broadcastLobby(code);
+  });
 
-  socket.emit('init', { id: socket.id, world: WORLD, players });
-  socket.broadcast.emit('playerJoined', players[socket.id]);
+  socket.on('joinRoom', ({ code, name, character }, cb) => {
+    code = (code || '').toUpperCase().trim();
+    const room = rooms[code];
+    if (!room) return cb?.({ ok: false, error: 'Místnost neexistuje' });
+    if (room.started) return cb?.({ ok: false, error: 'Hra už začala' });
+    if (Object.keys(room.players).length >= 8) return cb?.({ ok: false, error: 'Místnost plná' });
 
+    room.players[socket.id] = {
+      id: socket.id,
+      name: (name || 'Player').slice(0, 16),
+      character: character || 'soldier',
+      ready: false,
+      isHost: false,
+    };
+    socket.join(code);
+    currentRoom = code;
+    cb?.({ ok: true, code });
+    broadcastLobby(code);
+  });
+
+  socket.on('setCharacter', ({ character }) => {
+    const room = rooms[currentRoom];
+    if (!room || !room.players[socket.id]) return;
+    room.players[socket.id].character = character;
+    broadcastLobby(currentRoom);
+  });
+
+  socket.on('toggleReady', () => {
+    const room = rooms[currentRoom];
+    if (!room || !room.players[socket.id]) return;
+    const p = room.players[socket.id];
+    if (p.isHost) return; // host je vždycky ready
+    p.ready = !p.ready;
+    broadcastLobby(currentRoom);
+  });
+
+  socket.on('chat', ({ text }) => {
+    const room = rooms[currentRoom];
+    if (!room || !room.players[socket.id]) return;
+    text = (text || '').toString().slice(0, 200);
+    if (!text.trim()) return;
+    io.to(currentRoom).emit('chat', {
+      from: room.players[socket.id].name,
+      text,
+      t: Date.now(),
+    });
+  });
+
+  socket.on('startGame', () => {
+    const room = rooms[currentRoom];
+    if (!room || room.hostId !== socket.id) return;
+    const players = Object.values(room.players);
+    const allReady = players.every(p => p.ready);
+    if (!allReady) {
+      socket.emit('startError', 'Někteří hráči nejsou ready');
+      return;
+    }
+    room.started = true;
+    initGameState(room);
+    io.to(currentRoom).emit('gameStart', {
+      players: players.map(p => ({
+        id: p.id, name: p.name, character: p.character,
+        x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp,
+      })),
+      world: WORLD,
+    });
+  });
+
+  // ── HRA ────────────────────────────────────
   socket.on('state', (s) => {
-    const prev = players[socket.id];
+    const room = rooms[currentRoom];
+    if (!room || !room.started) return;
+    const prev = room.players[socket.id];
     if (!prev) return;
 
     const now = Date.now();
     const dt = (now - prev.lastUpdate) / 1000;
-    if (dt < 1 / STATE_RATE_LIMIT) return; // rate limit
+    if (dt < 1 / STATE_RATE_LIMIT) return;
     prev.lastUpdate = now;
 
-    // sanity: vzdálenost musí být věrohodná
     const dist = Math.hypot(s.x - prev.x, s.y - prev.y);
     if (dt > 0 && dist / dt > MAX_SPEED * 1.5) {
-      // odmítni — pošli korekci
       socket.emit('correction', { x: prev.x, y: prev.y });
       return;
     }
-    // sanity: zůstaň ve světě
     s.x = Math.max(0, Math.min(WORLD.w, s.x));
     s.y = Math.max(0, Math.min(WORLD.h, s.y));
 
-    prev.x = s.x;
-    prev.y = s.y;
-    prev.angle = s.angle;
-    prev.hp = s.hp;
+    prev.x = s.x; prev.y = s.y; prev.angle = s.angle; prev.hp = s.hp;
 
-    socket.broadcast.emit('playerState', {
-      id: socket.id,
-      x: s.x,
-      y: s.y,
-      angle: s.angle,
-      hp: s.hp,
-      t: now,
+    socket.to(currentRoom).emit('playerState', {
+      id: socket.id, x: s.x, y: s.y, angle: s.angle, hp: s.hp, t: now,
     });
   });
 
   socket.on('shoot', (data) => {
-    const p = players[socket.id];
+    const room = rooms[currentRoom];
+    if (!room || !room.started) return;
+    const p = room.players[socket.id];
     if (!p) return;
     const now = Date.now();
-    // rate limit výstřelů
-    p.shotTimes = p.shotTimes.filter((t) => now - t < 1000);
+    p.shotTimes = p.shotTimes.filter(t => now - t < 1000);
     if (p.shotTimes.length >= MAX_FIRE_RATE) return;
     p.shotTimes.push(now);
-
-    socket.broadcast.emit('shoot', {
+    socket.to(currentRoom).emit('shoot', {
       ownerId: socket.id,
-      x: data.x,
-      y: data.y,
-      angle: data.angle,
-      weapon: data.weapon,
+      x: data.x, y: data.y, angle: data.angle, weapon: data.weapon,
     });
   });
 
   socket.on('hit', (data) => {
-    // "dostal jsem zásah" — hráč hlásí vlastní damage
-    const target = players[socket.id];
+    const room = rooms[currentRoom];
+    if (!room || !room.started) return;
+    const target = room.players[socket.id];
     if (!target) return;
     target.hp = Math.max(0, target.hp - data.damage);
     if (target.hp === 0) {
       target.hp = target.maxHp;
       target.x = Math.random() * WORLD.w;
       target.y = Math.random() * WORLD.h;
-      io.emit('respawn', { id: socket.id, x: target.x, y: target.y, hp: target.hp });
+      io.to(currentRoom).emit('respawn', {
+        id: socket.id, x: target.x, y: target.y, hp: target.hp,
+      });
     }
   });
 
   socket.on('ability', (data) => {
-    // jen relay — klienti si pustí vizuální efekt sami
-    socket.broadcast.emit('ability', { id: socket.id, type: data.type, payload: data.payload });
+    if (!currentRoom || !rooms[currentRoom]?.started) return;
+    socket.to(currentRoom).emit('ability', {
+      id: socket.id, type: data.type, payload: data.payload,
+    });
   });
 
+  // ── ODPOJENÍ ───────────────────────────────
   socket.on('disconnect', () => {
-    delete players[socket.id];
-    io.emit('playerLeft', socket.id);
     console.log('disconnect', socket.id);
+    if (!currentRoom) return;
+    const room = rooms[currentRoom];
+    if (!room) return;
+
+    delete room.players[socket.id];
+
+    if (Object.keys(room.players).length === 0) {
+      delete rooms[currentRoom];
+      return;
+    }
+
+    // pokud odešel host, předej hostství
+    if (room.hostId === socket.id) {
+      const next = Object.values(room.players)[0];
+      room.hostId = next.id;
+      next.isHost = true;
+      next.ready = true;
+    }
+
+    io.to(currentRoom).emit('playerLeft', socket.id);
+    broadcastLobby(currentRoom);
   });
 });
 
