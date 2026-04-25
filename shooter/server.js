@@ -48,6 +48,20 @@ function broadcastLobby(code) {
   io.to(code).emit('lobby:update', lobbySnapshot(room));
 }
 
+function broadcastScoreboard(code) {
+  const room = rooms[code];
+  if (!room) return;
+  const scoreboard = Object.values(room.players).map(p => ({
+    id: p.id,
+    name: p.name,
+    character: p.character,
+    kills: p.kills || 0,
+    deaths: p.deaths || 0,
+    ping: p.ping || 0,
+  }));
+  io.to(code).emit('game:scoreboard', scoreboard);
+}
+
 // ─────────────────────────────────────────────
 // Sockets
 // ─────────────────────────────────────────────
@@ -171,6 +185,7 @@ io.on('connection', (socket) => {
       p.y = 100 + Math.random() * (WORLD.h - 200);
       p.hp = 100; p.maxHp = 100; p.angle = 0;
       p.lastUpdate = Date.now(); p.shotTimes = [];
+      p.kills = 0; p.deaths = 0; p.ping = 0;
     }
     io.to(roomCode).emit('game:start', {
       world: WORLD,
@@ -224,12 +239,21 @@ io.on('connection', (socket) => {
     const damage = Math.max(0, Math.min(100, Number(d?.damage) || 0));
     target.hp = Math.max(0, target.hp - damage);
     if (target.hp === 0) {
+      // přidělit kill / death
+      const shooterId = String(d?.shooterId || '');
+      const shooter = shooterId && room.players[shooterId];
+      if (shooter && shooter.id !== target.id) {
+        shooter.kills = (shooter.kills || 0) + 1;
+      }
+      target.deaths = (target.deaths || 0) + 1;
+
       target.hp = target.maxHp;
       target.x = 100 + Math.random() * (WORLD.w - 200);
       target.y = 100 + Math.random() * (WORLD.h - 200);
       io.to(roomCode).emit('game:respawn', {
         id: socket.id, x: target.x, y: target.y, hp: target.hp,
       });
+      broadcastScoreboard(roomCode);
     }
   });
 
@@ -239,6 +263,17 @@ io.on('connection', (socket) => {
     socket.to(roomCode).emit('game:ability', {
       id: socket.id, type: String(d?.type || ''), payload: d?.payload || {},
     });
+  });
+
+  // Ping/pong + ping update
+  socket.on('game:ping', (clientTime) => {
+    socket.emit('game:pong', clientTime);
+  });
+
+  socket.on('game:reportPing', (ms) => {
+    const room = rooms[roomCode];
+    if (!room || !room.players[socket.id]) return;
+    room.players[socket.id].ping = Math.max(0, Math.min(9999, Number(ms) || 0));
   });
 
   socket.on('disconnect', () => {
@@ -255,6 +290,13 @@ io.on('connection', (socket) => {
 
 process.on('uncaughtException', (e) => console.error('uncaught:', e));
 process.on('unhandledRejection', (e) => console.error('rejection:', e));
+
+// Periodicky posílat scoreboard (ping se aktualizuje)
+setInterval(() => {
+  for (const code in rooms) {
+    if (rooms[code].started) broadcastScoreboard(code);
+  }
+}, 2000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Listening on :${PORT}`));

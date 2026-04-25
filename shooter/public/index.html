@@ -289,6 +289,56 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.6; }
     }
+
+    /* ─── Scoreboard (TAB) ─── */
+    #scoreboard {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(20, 24, 40, 0.95);
+      border: 2px solid #4ecdc4;
+      border-radius: 8px;
+      padding: 16px 20px;
+      min-width: 480px;
+      max-width: 90vw;
+      display: none;
+      z-index: 90;
+      box-shadow: 0 0 40px rgba(78, 205, 196, 0.3);
+    }
+    #scoreboard.visible { display: block; }
+    #scoreboard h2 {
+      color: #4ecdc4;
+      font-size: 16px;
+      text-align: center;
+      margin-bottom: 12px;
+      letter-spacing: 2px;
+    }
+    #scoreboard table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'Silkscreen', monospace;
+    }
+    #scoreboard th, #scoreboard td {
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 13px;
+    }
+    #scoreboard th {
+      color: #9ca3af;
+      text-transform: uppercase;
+      font-size: 11px;
+      border-bottom: 1px solid #374151;
+    }
+    #scoreboard td {
+      border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+    }
+    #scoreboard tr:last-child td { border-bottom: none; }
+    #scoreboard .col-num { text-align: right; }
+    #scoreboard .pname { font-weight: 700; color: #fff; }
+    #scoreboard .pchar { font-size: 11px; color: #9ca3af; margin-left: 6px; }
+    #scoreboard .me { background: rgba(78, 205, 196, 0.1); }
+    #scoreboard .ping-good { color: #5ec85e; }
+    #scoreboard .ping-mid  { color: #ffe066; }
+    #scoreboard .ping-bad  { color: #ff6b6b; }
   </style>
 </head>
 <body>
@@ -350,12 +400,29 @@
   <div id="screen-game" class="screen">
     <canvas id="game" width="960" height="600"></canvas>
     <div id="hud"></div>
-    <div id="help">WASD move · Mouse aim · LMB shoot · 1/2/3 weapon · Q ability · Z chat · ESC menu</div>
+    <div id="help">WASD move · Mouse aim · LMB shoot · 1/2/3 weapon · Q ability · Z chat · TAB scoreboard · ESC menu</div>
 
     <!-- Chat — always present, opens with Z key -->
     <div id="gameChat">
       <div id="gameChatLog"></div>
       <input id="gameChatInput" type="text" maxlength="200" placeholder="Type a message... (Enter = send, Esc = cancel)" />
+    </div>
+
+    <!-- Scoreboard (hold TAB) -->
+    <div id="scoreboard">
+      <h2>SCOREBOARD</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th class="col-num">Kills</th>
+            <th class="col-num">Deaths</th>
+            <th class="col-num">Score</th>
+            <th class="col-num">Ping</th>
+          </tr>
+        </thead>
+        <tbody id="scoreboardBody"></tbody>
+      </table>
     </div>
 
     <!-- Pause menu -->

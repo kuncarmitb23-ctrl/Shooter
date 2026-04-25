@@ -64,6 +64,8 @@ export function initGame({ session, showScreen }) {
   const backToLobbyBtn = document.getElementById('backToLobbyBtn');
   const closeSettingsBtn = document.getElementById('closeSettingsBtn');
   const resetKeybindsBtn = document.getElementById('resetKeybindsBtn');
+  const scoreboardEl = document.getElementById('scoreboard');
+  const scoreboardBody = document.getElementById('scoreboardBody');
 
   // ── Stav ──────────────────────────────────────
   const keys = {};
@@ -75,6 +77,7 @@ export function initGame({ session, showScreen }) {
   let loadout = null;
   let activeSlot = 'primary';
   let stateInterval = null;
+  let pingInterval = null;
   let running = false;
 
   // UI stav
@@ -82,8 +85,11 @@ export function initGame({ session, showScreen }) {
   let pauseOpen = false;
   let settingsOpen = false;
   let bindingKey = null;
+  let scoreboardOpen = false;
 
   let keybinds = loadKeybinds();
+  let scoreboardData = []; // poslední data od serveru
+  let currentPing = 0;
 
   function isInputBlocked() {
     return chatOpen || pauseOpen || settingsOpen || bindingKey !== null;
@@ -147,6 +153,17 @@ export function initGame({ session, showScreen }) {
       return;
     }
 
+    // 4.5) TAB shows scoreboard while held
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (!scoreboardOpen && me) {
+        scoreboardOpen = true;
+        renderScoreboard();
+        scoreboardEl.classList.add('visible');
+      }
+      return;
+    }
+
     // 5) Game keys — only when no overlay is open
     if (!me || isInputBlocked()) return;
 
@@ -164,7 +181,22 @@ export function initGame({ session, showScreen }) {
   });
 
   addEventListener('keyup', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      scoreboardOpen = false;
+      scoreboardEl.classList.remove('visible');
+      return;
+    }
     keys[e.key.toLowerCase()] = false;
+  });
+
+  // safety: když se přepne tab v prohlížeči, vyčistit klávesy
+  addEventListener('blur', () => {
+    for (const k in keys) keys[k] = false;
+    if (scoreboardOpen) {
+      scoreboardOpen = false;
+      scoreboardEl.classList.remove('visible');
+    }
   });
 
   canvas.addEventListener('mousemove', (e) => {
@@ -217,6 +249,60 @@ export function initGame({ session, showScreen }) {
   socket.on('lobby:chat', ({ from, text }) => {
     appendChatMessage(from, text);
   });
+
+  // ── Scoreboard ────────────────────────────────
+  function renderScoreboard() {
+    scoreboardBody.innerHTML = '';
+    // seřadit: nejvíc killů první, pak nejmíň deaths
+    const sorted = [...scoreboardData].sort((a, b) => {
+      if (b.kills !== a.kills) return b.kills - a.kills;
+      return a.deaths - b.deaths;
+    });
+    for (const p of sorted) {
+      const tr = document.createElement('tr');
+      if (p.id === session.selfId) tr.className = 'me';
+
+      const charData = CHARACTERS[p.character];
+
+      const nameTd = document.createElement('td');
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'pname';
+      nameSpan.textContent = p.name;
+      const charSpan = document.createElement('span');
+      charSpan.className = 'pchar';
+      charSpan.style.color = charData?.color || '#9ca3af';
+      charSpan.textContent = charData?.name || p.character;
+      nameTd.appendChild(nameSpan);
+      nameTd.appendChild(document.createTextNode(' '));
+      nameTd.appendChild(charSpan);
+      tr.appendChild(nameTd);
+
+      const killsTd = document.createElement('td');
+      killsTd.className = 'col-num';
+      killsTd.textContent = p.kills;
+      tr.appendChild(killsTd);
+
+      const deathsTd = document.createElement('td');
+      deathsTd.className = 'col-num';
+      deathsTd.textContent = p.deaths;
+      tr.appendChild(deathsTd);
+
+      const scoreTd = document.createElement('td');
+      scoreTd.className = 'col-num';
+      scoreTd.textContent = '0'; // pro budoucí score logic
+      tr.appendChild(scoreTd);
+
+      const pingTd = document.createElement('td');
+      pingTd.className = 'col-num ' + (
+        p.ping < 80 ? 'ping-good' :
+        p.ping < 200 ? 'ping-mid' : 'ping-bad'
+      );
+      pingTd.textContent = p.ping + ' ms';
+      tr.appendChild(pingTd);
+
+      scoreboardBody.appendChild(tr);
+    }
+  }
 
   // ── Pause menu ────────────────────────────────
   function togglePause() {
@@ -299,6 +385,16 @@ export function initGame({ session, showScreen }) {
     if (r) r.pushSnapshot(s);
   });
 
+  socket.on('game:scoreboard', (data) => {
+    scoreboardData = data || [];
+    if (scoreboardOpen) renderScoreboard();
+  });
+
+  socket.on('game:pong', (clientTime) => {
+    currentPing = Date.now() - clientTime;
+    socket.emit('game:reportPing', currentPing);
+  });
+
   socket.on('game:shoot', (d) => {
     const w = WEAPONS[d.weapon];
     if (!w) return;
@@ -335,10 +431,14 @@ export function initGame({ session, showScreen }) {
     bullets = [];
     me = null;
     chatOpen = false; pauseOpen = false; settingsOpen = false; bindingKey = null;
+    scoreboardOpen = false;
+    scoreboardData = [];
+    currentPing = 0;
     chatLog.innerHTML = '';
     gameChat.classList.remove('active');
     pauseOverlay.classList.remove('visible');
     settingsOverlay.classList.remove('visible');
+    scoreboardEl.classList.remove('visible');
 
     for (const p of data.players) {
       const character = CHARACTERS[p.character] || CHARACTERS.soldier;
@@ -365,6 +465,11 @@ export function initGame({ session, showScreen }) {
     stateInterval = setInterval(() => {
       if (me) socket.emit('game:state', { x: me.x, y: me.y, angle: me.angle, hp: me.hp });
     }, 33);
+
+    if (pingInterval) clearInterval(pingInterval);
+    pingInterval = setInterval(() => {
+      socket.emit('game:ping', Date.now());
+    }, 2000);
 
     if (!running) {
       running = true;
@@ -408,7 +513,7 @@ export function initGame({ session, showScreen }) {
         b.dead = true;
         if (Date.now() < me.shieldUntil) continue;
         me.hp = Math.max(0, me.hp - b.damage);
-        socket.emit('game:hit', { damage: b.damage });
+        socket.emit('game:hit', { damage: b.damage, shooterId: b.ownerId });
       }
     }
   }
@@ -510,7 +615,7 @@ export function initGame({ session, showScreen }) {
       hud.textContent =
         `HP ${Math.round(me.hp)}/${me.maxHp} | ` +
         `Slot: ${activeSlot} (${loadout?.[activeSlot] || '?'}) | ` +
-        `${ab.id}: ${cd} | Players: ${1 + Object.keys(remotes).length}`;
+        `${ab.id}: ${cd} | ${currentPing}ms | TAB scoreboard`;
     }
 
     requestAnimationFrame(loop);
