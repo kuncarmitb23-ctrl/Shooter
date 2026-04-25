@@ -1,12 +1,15 @@
 {
   "name": "shooter",
-  "version": "1.0.0",
-  "type": "commonjs",
+  "version": "1.2.0",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.8.3"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

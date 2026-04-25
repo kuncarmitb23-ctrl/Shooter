@@ -4,189 +4,254 @@
   <meta charset="utf-8" />
   <title>2D Shooter</title>
   <style>
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      margin: 0; background: #111; overflow: hidden;
-      font-family: 'Segoe UI', Tahoma, sans-serif; color: #eee;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      color: #eee;
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
     }
 
-    /* ─── Lobby obrazovka ─── */
-    #menu {
-      position: fixed; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(135deg, #1a1a2e, #16213e);
+    /* Skryté sekce - nezobrazujeme všechny najednou */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ─── Status připojení ─── */
+    .conn-status {
+      position: fixed; top: 8px; right: 8px;
+      font-family: monospace; font-size: 12px;
+      padding: 4px 10px; border-radius: 4px;
+      background: rgba(0,0,0,0.5); z-index: 1000;
     }
+    .conn-status.connecting { color: #ffe066; }
+    .conn-status.connected { color: #5ec85e; }
+    .conn-status.disconnected { color: #ff6b6b; }
+
+    /* ─── MENU obrazovka ─── */
+    #screen-menu.active {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .panel {
       background: #1f2937;
       border: 1px solid #374151;
       border-radius: 12px;
       padding: 32px;
       width: 420px;
+      max-width: 90vw;
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
-    .panel h1 { margin: 0 0 8px; color: #4ecdc4; font-size: 28px; }
-    .panel h2 { margin: 24px 0 12px; font-size: 16px; color: #9ca3af; font-weight: 500; }
-    .panel input, .panel select, .panel button {
+    .panel h1 {
+      color: #4ecdc4; font-size: 28px; margin-bottom: 8px;
+    }
+    .panel p.sub { color: #9ca3af; margin-bottom: 20px; }
+    .panel h2 {
+      margin: 20px 0 10px; font-size: 14px;
+      color: #9ca3af; font-weight: 500; text-transform: uppercase;
+    }
+
+    .input, .btn {
       width: 100%; padding: 10px 14px;
-      background: #111827; border: 1px solid #374151; color: #eee;
-      border-radius: 6px; font-size: 14px; margin-bottom: 10px;
-      font-family: inherit;
+      background: #111827; border: 1px solid #374151;
+      color: #eee; border-radius: 6px;
+      font-size: 14px; font-family: inherit;
+      margin-bottom: 8px;
     }
-    .panel input:focus, .panel select:focus { outline: none; border-color: #4ecdc4; }
-    .panel button {
-      background: #4ecdc4; color: #111; font-weight: 600; cursor: pointer;
-      border: none; transition: background 0.15s;
-    }
-    .panel button:hover { background: #3eb5ad; }
-    .panel button.secondary { background: #374151; color: #eee; }
-    .panel button.secondary:hover { background: #4b5563; }
-    .panel .row { display: flex; gap: 8px; }
-    .panel .row > * { flex: 1; }
-    .err { color: #ff6b6b; font-size: 13px; margin: -4px 0 8px; min-height: 16px; }
+    .input:focus { outline: none; border-color: #4ecdc4; }
 
-    /* ─── Lobby (room) obrazovka ─── */
-    #lobby {
-      position: fixed; inset: 0; display: none;
-      background: linear-gradient(135deg, #1a1a2e, #16213e);
+    .btn { cursor: pointer; font-weight: 600; transition: background 0.15s; border: none; }
+    .btn-primary { background: #4ecdc4; color: #111; }
+    .btn-primary:hover { background: #3eb5ad; }
+    .btn-primary:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+    .btn-success { background: #5ec85e; color: #111; }
+    .btn-danger { background: #ff6b6b; color: #111; }
+    .btn-secondary { background: #374151; color: #eee; }
+
+    .row { display: flex; gap: 8px; }
+    .row .input { flex: 1; }
+    .row .btn { width: auto; padding: 10px 16px; }
+
+    .err {
+      color: #ff6b6b; font-size: 13px;
+      min-height: 18px; margin-top: 4px;
+    }
+
+    /* ─── LOBBY obrazovka ─── */
+    #screen-lobby.active {
       padding: 20px;
-      overflow-y: auto;
+      display: flex;
+      gap: 16px;
+      max-width: 1100px;
+      margin: 0 auto;
+      flex-wrap: wrap;
     }
-    #lobby.active { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1100px; margin: 0 auto; align-content: start; }
-    #lobby .col {
-      background: #1f2937; border: 1px solid #374151;
-      border-radius: 12px; padding: 20px; display: flex; flex-direction: column;
+    #screen-lobby .col {
+      flex: 1 1 400px;
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 20px;
     }
-    #roomCode {
-      font-size: 32px; font-weight: 700; color: #4ecdc4;
-      letter-spacing: 4px; cursor: pointer; user-select: all;
-    }
-    #roomCode:hover { color: #3eb5ad; }
-    .copy-hint { font-size: 11px; color: #6b7280; margin-top: 4px; }
 
-    .player-list { list-style: none; padding: 0; margin: 12px 0; flex: 1; }
+    .room-code {
+      font-size: 36px; font-weight: 700;
+      color: #4ecdc4; letter-spacing: 6px;
+      cursor: pointer; user-select: all;
+      padding: 8px 0;
+    }
+    .room-code:hover { color: #3eb5ad; }
+    .copy-hint { font-size: 11px; color: #6b7280; margin-bottom: 16px; }
+
+    .player-list {
+      list-style: none;
+      margin: 12px 0;
+    }
     .player-list li {
       display: flex; align-items: center; gap: 10px;
-      padding: 10px; background: #111827; border-radius: 6px; margin-bottom: 6px;
+      padding: 10px;
+      background: #111827;
+      border-radius: 6px;
+      margin-bottom: 6px;
     }
-    .player-list .dot { width: 10px; height: 10px; border-radius: 50%; background: #6b7280; flex-shrink: 0; }
+    .player-list .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #6b7280;
+      flex-shrink: 0;
+    }
     .player-list .dot.ready { background: #5ec85e; }
-    .player-list .name { flex: 1; font-weight: 600; }
+    .player-list .pname { flex: 1; font-weight: 600; }
+    .player-list .pchar { font-size: 12px; color: #9ca3af; }
     .player-list .badge {
-      font-size: 11px; padding: 2px 6px; border-radius: 4px;
+      font-size: 10px; padding: 2px 6px; border-radius: 4px;
       background: #4ecdc4; color: #111; font-weight: 700;
     }
-    .player-list .char { font-size: 12px; color: #9ca3af; }
 
-    .char-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .char-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
     .char-card {
-      background: #111827; border: 2px solid #374151; border-radius: 8px;
-      padding: 12px; cursor: pointer; transition: all 0.15s;
+      background: #111827;
+      border: 2px solid #374151;
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
     }
     .char-card:hover { border-color: #4b5563; }
     .char-card.selected { border-color: #4ecdc4; background: #0f1f1d; }
-    .char-card .name { font-weight: 700; font-size: 14px; }
-    .char-card .ability { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+    .char-card .cname { font-weight: 700; font-size: 14px; }
+    .char-card .cab { font-size: 11px; color: #9ca3af; margin-top: 4px; }
 
-    #chat { display: flex; flex-direction: column; height: 240px; }
-    #chatLog {
-      flex: 1; overflow-y: auto; background: #111827;
-      border-radius: 6px; padding: 10px; font-size: 13px;
+    .chat {
+      display: flex; flex-direction: column;
+      height: 200px;
     }
-    #chatLog .msg { margin-bottom: 4px; word-wrap: break-word; }
-    #chatLog .from { color: #4ecdc4; font-weight: 600; }
-    #chatInput {
+    .chat-log {
+      flex: 1; overflow-y: auto;
+      background: #111827; border-radius: 6px;
+      padding: 10px; font-size: 13px;
+    }
+    .chat-log .msg { margin-bottom: 4px; word-wrap: break-word; }
+    .chat-log .from { color: #4ecdc4; font-weight: 600; }
+    .chat-input {
       margin-top: 8px; padding: 8px 12px;
       background: #111827; border: 1px solid #374151;
       color: #eee; border-radius: 6px; font-family: inherit;
     }
 
-    .lobby-actions { display: flex; gap: 8px; margin-top: 12px; }
-    .lobby-actions button { flex: 1; padding: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; font-family: inherit; }
-    #readyBtn { background: #374151; color: #eee; }
-    #readyBtn.is-ready { background: #5ec85e; color: #111; }
-    #startBtn { background: #4ecdc4; color: #111; }
-    #startBtn:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
-    #leaveBtn { background: #ff6b6b; color: #111; }
-
-    /* ─── Hra ─── */
-    #game-screen { display: none; }
-    #game-screen.active { display: block; }
-    canvas { display: block; margin: 0 auto; background: #2a2a2a; }
-    #hud { position: fixed; top: 8px; left: 8px; font-family: monospace; }
-    #help { position: fixed; bottom: 8px; left: 8px; opacity: 0.7; font-size: 12px; font-family: monospace; }
-
-    .conn-status {
-      position: fixed; top: 8px; right: 8px;
-      font-family: monospace; font-size: 12px;
-      padding: 4px 8px; border-radius: 4px;
-      background: rgba(0,0,0,0.5);
+    .lobby-actions {
+      display: flex; gap: 8px; margin-top: 16px;
     }
-    .conn-status.connecting { color: #ffe066; }
-    .conn-status.connected { color: #5ec85e; }
-    .conn-status.disconnected { color: #ff6b6b; }
+    .lobby-actions .btn { flex: 1; padding: 12px; }
+
+    /* ─── HRA ─── */
+    #screen-game.active {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas { background: #2a2a2a; display: block; }
+    #hud {
+      position: fixed; top: 8px; left: 8px;
+      font-family: monospace; font-size: 13px;
+      background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 4px;
+    }
+    #help {
+      position: fixed; bottom: 8px; left: 8px;
+      opacity: 0.7; font-size: 12px; font-family: monospace;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Stav připojení -->
   <div class="conn-status connecting" id="connStatus">připojuji...</div>
 
-  <!-- ÚVODNÍ MENU -->
-  <div id="menu">
+  <!-- ═══ MENU ═══ -->
+  <div id="screen-menu" class="screen active">
     <div class="panel">
       <h1>🎮 2D Shooter</h1>
-      <p style="color:#9ca3af; margin: 0 0 20px;">Vytvoř místnost nebo se připoj kódem</p>
+      <p class="sub">Vytvoř místnost nebo se připoj kódem</p>
 
       <h2>Tvoje jméno</h2>
-      <input id="nameInput" type="text" maxlength="16" placeholder="Nick" />
+      <input id="nameInput" class="input" type="text" maxlength="16" placeholder="Nick" />
 
       <h2>Vytvořit novou místnost</h2>
-      <button id="createBtn">Vytvořit místnost</button>
+      <button id="createBtn" class="btn btn-primary">Vytvořit místnost</button>
 
       <h2>Připojit se ke kámošovi</h2>
       <div class="row">
-        <input id="codeInput" type="text" maxlength="5" placeholder="KÓD" style="text-transform: uppercase;" />
-        <button id="joinBtn">Připojit</button>
+        <input id="codeInput" class="input" type="text" maxlength="5" placeholder="KÓD" style="text-transform: uppercase;" />
+        <button id="joinBtn" class="btn btn-primary">Připojit</button>
       </div>
       <div class="err" id="menuErr"></div>
     </div>
   </div>
 
-  <!-- LOBBY MÍSTNOSTI -->
-  <div id="lobby">
+  <!-- ═══ LOBBY ═══ -->
+  <div id="screen-lobby" class="screen">
     <div class="col">
-      <div>Kód místnosti</div>
-      <div id="roomCode">-----</div>
-      <div class="copy-hint">Klikni na kód pro označení (Ctrl+C)</div>
+      <div style="font-size: 12px; color: #9ca3af;">Kód místnosti</div>
+      <div class="room-code" id="roomCodeEl">-----</div>
+      <div class="copy-hint">Klikni na kód a zkopíruj (Ctrl+C)</div>
 
-      <h2 style="margin-top: 20px;">Hráči</h2>
+      <h2 style="margin: 16px 0 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Hráči</h2>
       <ul class="player-list" id="playerList"></ul>
 
       <div class="lobby-actions">
-        <button id="readyBtn">Ready</button>
-        <button id="startBtn" disabled>Start hry</button>
-        <button id="leaveBtn">Odejít</button>
+        <button id="readyBtn" class="btn btn-secondary">Ready</button>
+        <button id="startBtn" class="btn btn-primary" disabled>Start hry</button>
+        <button id="leaveBtn" class="btn btn-danger">Odejít</button>
       </div>
       <div class="err" id="lobbyErr"></div>
     </div>
 
     <div class="col">
-      <h2 style="margin-top: 0;">Vyber postavu</h2>
+      <h2 style="margin-bottom: 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Vyber postavu</h2>
       <div class="char-grid" id="charGrid"></div>
 
-      <h2>Chat</h2>
-      <div id="chat">
-        <div id="chatLog"></div>
-        <input id="chatInput" type="text" maxlength="200" placeholder="Napiš zprávu a stiskni Enter..." />
+      <h2 style="margin: 16px 0 8px; font-size: 14px; color: #9ca3af; text-transform: uppercase;">Chat</h2>
+      <div class="chat">
+        <div class="chat-log" id="chatLog"></div>
+        <input id="chatInput" class="chat-input" type="text" maxlength="200" placeholder="Napiš zprávu a Enter..." />
       </div>
     </div>
   </div>
 
-  <!-- HRA -->
-  <div id="game-screen">
+  <!-- ═══ HRA ═══ -->
+  <div id="screen-game" class="screen">
     <canvas id="game" width="960" height="600"></canvas>
     <div id="hud"></div>
-    <div id="help">WASD = pohyb &nbsp;|&nbsp; Myš = míření &nbsp;|&nbsp; LMB = střelba &nbsp;|&nbsp; 1/2/3 = zbraň &nbsp;|&nbsp; Q = schopnost</div>
+    <div id="help">WASD pohyb · Myš mířit · LMB střela · 1/2/3 zbraň · Q schopnost</div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
