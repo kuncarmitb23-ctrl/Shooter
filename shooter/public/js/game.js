@@ -123,7 +123,7 @@ export function initGame({ session, showScreen }) {
     if (stateInterval) clearInterval(stateInterval);
     stateInterval = setInterval(() => {
       if (me) socket.emit('game:state', { x: me.x, y: me.y, angle: me.angle, hp: me.hp });
-    }, 50);
+    }, 33); // 30 Hz
 
     if (!running) {
       running = true;

@@ -24,8 +24,15 @@ export const CHARACTERS = {
 export const ABILITIES = {
   dash(player) {
     const d = player.character.ability.distance;
-    player.x += Math.cos(player.angle) * d;
-    player.y += Math.sin(player.angle) * d;
+    // primárně směr pohybu (WASD), fallback k myši když stojí
+    let dx = player.moveDirX;
+    let dy = player.moveDirY;
+    if (dx === 0 && dy === 0) {
+      dx = Math.cos(player.angle);
+      dy = Math.sin(player.angle);
+    }
+    player.x += dx * d;
+    player.y += dy * d;
   },
   shield(player) {
     player.shieldUntil = Date.now() + player.character.ability.duration * 1000;

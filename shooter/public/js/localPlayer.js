@@ -13,6 +13,9 @@ export class LocalPlayer {
     this.shieldUntil = 0;
     this.invisibleUntil = 0;
     this.name = '';
+    // poslední pohybový směr (pro dash, atd.)
+    this.moveDirX = 0;
+    this.moveDirY = 0;
   }
 
   update(dt, input, mouse, worldW, worldH) {
@@ -23,6 +26,10 @@ export class LocalPlayer {
     if (input.right) dx += 1;
     const len = Math.hypot(dx, dy);
     if (len > 0) { dx /= len; dy /= len; }
+
+    // ulož směr pro abilities (dash atd.)
+    this.moveDirX = dx;
+    this.moveDirY = dy;
 
     this.x += dx * this.speed * dt;
     this.y += dy * this.speed * dt;

@@ -1,4 +1,4 @@
-const INTERP_DELAY = 100;
+const INTERP_DELAY = 150;
 
 export class RemotePlayer {
   constructor(initial) {
@@ -37,6 +37,28 @@ export class RemotePlayer {
       this.x = s.x; this.y = s.y; this.angle = s.angle; this.hp = s.hp;
       return;
     }
+
+    const last = snaps[snaps.length - 1];
+    const prev = snaps[snaps.length - 2];
+
+    // Pokud render time je za posledním snímkem, extrapoluj (max 100ms)
+    if (renderTime > last.t) {
+      const ahead = Math.min(100, renderTime - last.t);
+      const span = last.t - prev.t;
+      if (span > 0) {
+        const vx = (last.x - prev.x) / span;
+        const vy = (last.y - prev.y) / span;
+        this.x = last.x + vx * ahead;
+        this.y = last.y + vy * ahead;
+      } else {
+        this.x = last.x; this.y = last.y;
+      }
+      this.angle = last.angle;
+      this.hp = last.hp;
+      return;
+    }
+
+    // Najdi dva snímky obklopující render time
     let a = snaps[0], b = snaps[1];
     for (let i = 0; i < snaps.length - 1; i++) {
       if (snaps[i].t <= renderTime && snaps[i + 1].t >= renderTime) {
